@@ -34,7 +34,8 @@ enum OF_TYPE
 	OF_NoPrefix					= 0x0004000,
 	OF_DyeType					= 0x0008000,
 	OF_DrinkIsFood				= 0x0010000,
-	OF_DClickNoTurn				= 0x0020000
+	OF_DClickNoTurn				= 0x0020000,
+	OF_CallObjSaveFunctions		= 0x0040000	// f_item_save_start etc.
 };
 
 enum EF_TYPE

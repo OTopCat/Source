@@ -33,6 +33,8 @@ LPCTSTR const CItem::sm_szTrigName[ITRIG_QTY+1] =	// static
 	"@PICKUP_PACK",	// picked up from inside some container.
 	"@PICKUP_SELF", // picked up from here
 	"@PICKUP_STACK",	// was picked up from a stack
+	"@SAVEEND",			// Item saved
+	"@SAVESTART",		// Item going to be saved
 	"@SELL",
 	"@Ship_Turn",
 	"@SpellEffect",		// cast some spell on me.
@@ -2035,6 +2037,14 @@ void CItem::r_Write( CScript & s )
 	if ( !pItemDef )
 		return;
 
+	if (IsSetOF(OF_CallObjSaveFunctions))
+		g_Serv.r_Call("f_item_save_start", &g_Serv, NULL);
+		//r_Verb(CScript("f_item_save_start"), &g_Serv);
+
+	TRIGRET_TYPE iRet = OnTrigger(ITRIG_SAVESTART, &g_Serv);
+	if (iRet == TRIGRET_RET_TRUE)
+		return;
+
 	s.WriteSection("WORLDITEM %s", GetResourceName());
 
 	CObjBase::r_Write(s);
@@ -2082,8 +2092,16 @@ void CItem::r_Write( CScript & s )
 		}
 	}
 	else
+	{
 		s.WriteKey("P", GetTopPoint().WriteUsed());
+	}
+	if (IsSetOF(OF_CallObjSaveFunctions))
+		g_Serv.r_Call("f_item_save_end", &g_Serv, NULL);
+		//r_Verb(CScript("f_item_save_end"), &g_Serv);
+	
+	OnTrigger(ITRIG_SAVEEND, &g_Serv);
 }
+
 
 bool CItem::LoadSetContainer( CGrayUID uid, LAYER_TYPE layer )
 {

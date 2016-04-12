@@ -63,6 +63,7 @@ public:
 	inline bool CallPersonalTrigger(TCHAR * pArgs, CTextConsole * pSrc, TRIGRET_TYPE & trResult, bool bFull);
 	static const char *m_sClassName;
 	CVarDefMap m_TagDefs;		// attach extra tags here.
+	CVarDefMap m_PTagDefs;		// pointer Tag.
 	CVarDefMap m_BaseDefs;		// New Variable storage system
 	DWORD	m_Can;
 	
@@ -210,7 +211,8 @@ protected:
 		CObjBaseTemplate::DupeCopy( pObj );
 		m_wHue = pObj->GetHue();
 		// m_timeout = pObj->m_timeout;
-		m_TagDefs.Copy( &( pObj->m_TagDefs ) );
+		m_TagDefs.Copy( &( pObj->m_TagDefs ));
+		m_PTagDefs.Copy(&(pObj->m_PTagDefs));
 		m_BaseDefs.Copy(&(pObj->m_BaseDefs));
 	}
 
@@ -414,6 +416,8 @@ enum ITRIG_TYPE
 	ITRIG_PICKUP_PACK,	// picked up from inside some container.
 	ITRIG_PICKUP_SELF,	// picked up from this container
 	ITRIG_PICKUP_STACK,	// picked up from a stack (ARGO)
+	ITRIG_SAVEEND,			// Item saved
+	ITRIG_SAVESTART,		// Item going to be saved
 	ITRIG_Sell,
 	ITRIG_Ship_Turn,
 	ITRIG_SPELLEFFECT,		// cast some spell on me.
@@ -1751,6 +1755,7 @@ protected:
 
 public:
 	int Multi_GetMaxDist() const;
+	size_t  Multi_ListObjs(CObjBase ** ppObjList);
 	struct ShipSpeed // speed of a ship
 	{
 		unsigned char period;	// time between movement
@@ -2618,6 +2623,9 @@ enum CTRIG_TYPE
 	CTRIG_SeeSnoop,			// I see someone Snooping something.
 
 	// SKTRIG_QTY
+
+	CTRIG_SAVEEND,
+	CTRIG_SAVESTART,
 	CTRIG_SkillAbort,			// SKTRIG_ABORT
 	CTRIG_SkillChange,
 	CTRIG_SkillFail,			// SKTRIG_FAIL
@@ -4095,7 +4103,7 @@ public:
 		return (m_pNPC->GetNpcAiFlags(this));
 	}
 	bool NPC_Vendor_Restock(bool bForce = false, bool bFillStock = false);
-	int NPC_GetVendorMarkup() const;
+	int NPC_GetVendorMarkup( const CChar * pChar ) const;
 
 	void NPC_OnPetCommand( bool fSuccess, CChar * pMaster );
 	bool NPC_OnHearPetCmd( LPCTSTR pszCmd, CChar * pSrc, bool fAllPets = false );

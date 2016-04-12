@@ -136,6 +136,10 @@ LPCTSTR const CChar::sm_szTrigName[CTRIG_QTY+1] =	// static
 	"@SeeSnoop",
 
 	// SKTRIG_QTY
+
+	"@SaveEnd",
+	"@SaveStart",
+
 	"@SkillAbort",
 	"@SkillChange",
 	"@SkillFail",
@@ -1741,7 +1745,7 @@ bool CChar::r_WriteVal( LPCTSTR pszKey, CGString & sVal, CTextConsole * pSrc )
 do_default:
 		if ( m_pPlayer )
 		{
-			if ( m_pPlayer->r_WriteVal( this, pszKey, sVal ))
+			if (m_pPlayer->r_WriteVal(this, pszKey, sVal ))
 				return( true );
 		}
 		if ( m_pNPC )
@@ -3140,6 +3144,14 @@ void CChar::r_Write( CScript & s )
 	ADDTOCALLSTACK_INTENSIVE("CChar::r_Write");
 	EXC_TRY("r_Write");
 
+	if (IsSetOF(OF_CallObjSaveFunctions))
+		g_Serv.r_Call("f_char_save_start", &g_Serv, NULL);
+		//r_Verb(CScript("f_char_save_start"), &g_Serv);
+
+	TRIGRET_TYPE iRet = OnTrigger(CTRIG_SAVESTART, &g_Serv);
+	if (iRet == TRIGRET_RET_TRUE)
+		return;
+
 	s.WriteSection("WORLDCHAR %s", GetResourceName());
 	s.WriteKeyVal("CREATE", -(g_World.GetTimeDiff(m_timeCreate) / TICK_PER_SEC));
 
@@ -3233,6 +3245,13 @@ void CChar::r_Write( CScript & s )
 	}
 
 	r_WriteContent(s);
+
+	if (IsSetOF(OF_CallObjSaveFunctions))
+		g_Serv.r_Call("f_char_save_end", &g_Serv, NULL);
+		//r_Verb(CScript("f_char_save_end"), &g_Serv);
+
+	iRet = OnTrigger(CTRIG_SAVEEND, &g_Serv);
+
 	EXC_CATCH;
 }
 

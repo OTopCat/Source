@@ -605,6 +605,36 @@ LPCTSTR const CObjBase::sm_szRefKeys[OBR_QTY+1] =
 
 bool CObjBase::r_GetRef( LPCTSTR & pszKey, CScriptObj * & pRef )
 {
+	if (!strnicmp(pszKey, "PTAG.", 5))
+	{
+		LPSTR pszKey2 = const_cast <LPSTR> (pszKey);
+		pszKey2 += 5;
+		TCHAR ch = *pszKey2;
+
+		while (ch != '\0' && ch != '.'  && ch != '\t' && ch != '=' && !isspace((int)ch))
+		{
+			pszKey2++;
+			ch = *pszKey2;
+		}
+		if (ch == '.')
+		{
+			*pszKey2 = '\0';
+			pszKey2++;
+			CVarDefContNum * pVarDef = dynamic_cast<CVarDefContNum *> (m_PTagDefs.GetKey(pszKey + 5));
+			if (pVarDef)
+			{
+				CGrayUID uid = pVarDef->GetValNum();
+				CObjBase * pObj = uid.ObjFind();
+				if (pObj)
+				{
+					pszKey = pszKey2;
+					pRef = pObj;
+					return true;
+				}
+			}
+		}
+
+	}
 	ADDTOCALLSTACK("CObjBase::r_GetRef");
 	int i = FindTableHeadSorted( pszKey, sm_szRefKeys, COUNTOF(sm_szRefKeys)-1 );
 	if ( i >= 0 )
@@ -694,6 +724,25 @@ bool CObjBase::r_WriteVal( LPCTSTR pszKey, CGString &sVal, CTextConsole * pSrc )
 	{
 		//return as string or hex number or NULL if not set
 		//On these ones, check BaseDef if not found on dynamic
+		case OC_PTAG:
+		if (pszKey[4] != '.')
+			return(false);
+		{
+			CScriptObj * pRef;
+			if (r_GetRef(pszKey, pRef))
+			{
+				if (pRef == NULL)
+				{
+					// good command but bad link.
+					sVal = "0";	// Bad refs always return "0"
+					return(true);
+				}
+				return pRef->r_WriteVal(pszKey, sVal, pSrc);
+			}
+			pszKey += 5;
+			sVal = m_PTagDefs.GetKeyStr(pszKey);
+		}
+		break;
 		case OC_NAMELOC:
 		case OC_HITSPELL:
 		case OC_SLAYER:
@@ -1442,6 +1491,9 @@ bool CObjBase::r_WriteVal( LPCTSTR pszKey, CGString &sVal, CTextConsole * pSrc )
 		case OC_TAGCOUNT:
 			sVal.FormatVal( m_TagDefs.GetCount() );
 			break;
+		case OC_PTAGCOUNT:
+			sVal.FormatVal(m_TagDefs.GetCount());
+			break;
 		case OC_PROPSAT:
 			{
  				pszKey += 7;	// eat the 'TAGAT'
@@ -1506,6 +1558,11 @@ bool CObjBase::r_LoadVal( CScript & s )
 		bool fQuoted = false;
 		m_TagDefs.SetStr(s.GetKey()+4, fQuoted, s.GetArgStr(&fQuoted), false);
 		return( true );
+	}
+	else if (s.IsKeyHead("PTAG.", 5))
+	{
+		m_PTagDefs.SetNum(s.GetKey() + 5, s.GetArgVal());
+		return(true);
 	}
 	else if ( s.IsKeyHead("TAG0.", 5) )
 	{
@@ -1834,6 +1891,7 @@ void CObjBase::r_Write( CScript & s )
 	m_BaseDefs.r_WritePrefix(s);
 
 	m_TagDefs.r_WritePrefix(s, "TAG");
+	m_PTagDefs.r_WritePTag(s);
 	m_OEvents.r_Write(s, "EVENTS");
 }
 
@@ -1868,7 +1926,14 @@ bool CObjBase::r_Verb( CScript & s, CTextConsole * pSrc ) // Execute command fro
 		m_TagDefs.ClearKeys(pszKey);
 		return true;
 	}
-	
+	if (!strnicmp(pszKey, "CLEARPTAGS", 10))
+	{
+		pszKey = s.GetArgStr();
+		SKIP_SEPARATORS(pszKey);
+		m_PTagDefs.ClearKeys(s.GetArgStr());
+		return true;
+	}
+
 	CGString sVal;
 	CScriptTriggerArgs Args( s.GetArgRaw() );
 	if ( r_Call( pszKey, pSrc, &Args, &sVal ) )
@@ -2218,6 +2283,14 @@ bool CObjBase::r_Verb( CScript & s, CTextConsole * pSrc ) // Execute command fro
 				if ( ! strcmpi( s.GetArgStr(), "log" ))
 					pSrc = &g_Serv;
 				m_TagDefs.DumpKeys(pSrc, "TAG.");
+			}break;
+
+		case OV_PTAGLIST:
+		{
+			EXC_SET("PTAGLIST");
+			if (!strcmpi(s.GetArgStr(), "log"))
+				pSrc = &g_Serv;
+			m_PTagDefs.DumpKeys(pSrc, "PTAG.");
 			}break;
 			
 		case OC_PROPSLIST:
