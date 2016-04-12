@@ -85,6 +85,36 @@ bool CScriptTriggerArgs::r_GetRef( LPCTSTR & pszKey, CScriptObj * & pRef )
 		pRef = m_pO1;
 		return( true );
 	}
+	else if (!strnicmp(pszKey, "PLOCAL.", 7))
+	{
+		LPSTR pszKey2 = const_cast <LPSTR> (pszKey);
+		pszKey2 += 7;
+		TCHAR ch = *pszKey2;
+
+		while (ch != '\0' && ch != '.'  && ch != '\t' && ch != '=' && !isspace((int)ch))
+		{
+			pszKey2++;
+			ch = *pszKey2;
+		}
+		if (ch == '.')
+		{
+			*pszKey2 = '\0';
+			pszKey2++;
+			CVarDefContNum * pVarDef = dynamic_cast<CVarDefContNum *> (m_PVarsLocal.GetKey(pszKey + 7));
+			if (pVarDef)
+			{
+				CGrayUID uid = pVarDef->GetValNum();
+				CObjBase * pObj = uid.ObjFind();
+				if (pObj)
+				{
+					pszKey = pszKey2;
+					pRef = pObj;
+					return true;
+				}
+			}
+		}
+
+	}
 	else if ( !strnicmp(pszKey, "REF", 3) )	// REF[1-65535].NAME
 	{
 		LPCTSTR pszTemp = pszKey;
@@ -149,7 +179,21 @@ bool CScriptTriggerArgs::r_Verb( CScript & s, CTextConsole * pSrc )
 	EXC_TRY("Verb");
 	int	index = -1;
 	LPCTSTR pszKey = s.GetKey();
+	LPCTSTR pszKeyTmp = pszKey;
 
+	CScriptObj * pRef;
+	if (r_GetRef(pszKeyTmp, pRef))
+	{
+		if (pszKeyTmp[0])
+		{
+			if (!pRef)
+			{
+				return(false);
+			}
+			return pRef->r_Verb(CScript(pszKeyTmp, s.GetArgStr()), pSrc);
+		}
+		// else just fall through. as they seem to be setting the pointer !?
+	}
 	if ( !strnicmp( "FLOAT.", pszKey, 6 ) )
 	{
 		return( m_VarsFloat.Insert( (pszKey+6), s.GetArgStr(), true ) );
@@ -159,6 +203,11 @@ bool CScriptTriggerArgs::r_Verb( CScript & s, CTextConsole * pSrc )
 		bool fQuoted = false;
 		m_VarsLocal.SetStr( s.GetKey()+6, fQuoted, s.GetArgStr( &fQuoted ), false );
 		return( true );
+	}
+	else if (!strnicmp("PLOCAL.", pszKey, 7))
+	{
+		m_PVarsLocal.SetNum(s.GetKey() + 7, s.GetArgVal());
+		return(true);
 	}
 	else if ( !strnicmp( "REF", pszKey, 3 ) )
 	{
@@ -286,7 +335,23 @@ bool CScriptTriggerArgs::r_WriteVal( LPCTSTR pszKey, CGString &sVal, CTextConsol
 		sVal	= m_VarsLocal.GetKeyStr(pszKey, true);
 		return( true );
 	}
+	else if (!strnicmp("PLOCAL.", pszKey, 7))
+	{
+		CScriptObj * pRef;
+		if (r_GetRef(pszKey, pRef))
+		{
+			if (pRef == NULL)
+			{
+				sVal = "0";	// Bad refs always return "0"
+				return(true);
+			}
+			return pRef->r_WriteVal(pszKey, sVal, pSrc);
+		}
 
+		pszKey += 7;
+		sVal = m_PVarsLocal.GetKeyStr(pszKey);
+		return(true);
+	}
 	if ( !strnicmp( "FLOAT.", pszKey, 6 ) )
 	{
 		EXC_SET("float");
@@ -2074,6 +2139,8 @@ enum SK_TYPE
 	SK_FORITEM,
 	SK_FOROBJ,
 	SK_FORPLAYERS,		// not necessary to be online
+	SK_FORPTAGS,
+	SK_FORTAGS,
 	SK_FORTIMERF,
 	SK_IF,
 	SK_RETURN,
@@ -2112,6 +2179,8 @@ LPCTSTR const CScriptObj::sm_szScriptKeys[SK_QTY+1] =
 	"FORITEMS",
 	"FOROBJS",
 	"FORPLAYERS",
+	"FORPTAGS",
+	"FORTAGS",
 	"FORTIMERF",
 	"IF",
 	"RETURN",
@@ -2204,6 +2273,8 @@ jump_in:
 				case SK_FORITEM:
 				case SK_FOROBJ:
 				case SK_FORPLAYERS:
+				case SK_FORPTAGS:
+				case SK_FORTAGS:
 				case SK_FORTIMERF:
 				case SK_DORAND:
 				case SK_DOSWITCH:
@@ -2315,6 +2386,17 @@ jump_in:
 					}
 				} break;
 			case SK_FORCONTID:
+			case SK_FORTAGS:
+			case SK_FORPTAGS:
+			{
+				CObjBase * pObj = dynamic_cast<CObjBase *>(this);
+				if (pObj)
+				{
+					CVarDefMap * pVars = (iCmd == SK_FORPTAGS) ? &pObj->m_TagDefs : &pObj->m_PTagDefs;
+					iRet = OnTriggerForVarsLoop(s, pSrc, pArgs, pVars, s.GetArgStr(), pResult);
+				}
+			}
+			break;
 			case SK_FORCONTTYPE:
 				{
 					EXC_SET("forcont[id/type]");
@@ -2397,7 +2479,9 @@ jump_in:
 			case SK_FORCONTTYPE:
 			case SK_FOROBJ:
 			case SK_FORPLAYERS:
+			case SK_FORPTAGS:
 			case SK_FORINSTANCE:
+			case SK_FORTAGS:
 			case SK_FORTIMERF:
 			case SK_FOR:
 			case SK_WHILE:
@@ -2626,6 +2710,65 @@ jump_in:
 		s.GetKey(), trigrun, static_cast<void *>(pArgs), pResult == NULL? "" : pResult->GetPtr(), static_cast<void *>(pSrc));
 	EXC_DEBUG_END;
 	return TRIGRET_RET_DEFAULT;
+}
+TRIGRET_TYPE CScriptObj::OnTriggerForVarsLoop(CScript &s, CTextConsole * pSrc, CScriptTriggerArgs * pArgs, CVarDefMap * pVars, LPCTSTR pszMask, CGString * pResult)
+{
+	CScriptLineContext StartContext = s.GetContext();
+	CScriptLineContext EndContext = StartContext;
+
+	int iQty = pVars ? pVars->GetCount() : 0;
+	TCHAR szMask[SCRIPT_MAX_LINE_LEN];
+	strcpy(szMask, pszMask);
+
+	//bool fRet = false;
+
+	if (iQty)
+	{
+		if (pszMask && *pszMask)
+		{
+			for (int i = 0; i < iQty; i++)
+			{
+				const CVarDefCont * pVar = pVars->GetAt(i);
+				if (Str_Match(szMask, pVar->GetKey()) != MATCH_VALID)
+					continue;
+				pArgs->m_VarsLocal.SetStr("_var_name", false, pVar->GetKey());
+				pArgs->m_VarsLocal.SetStr("_var_value", false, pVar->GetValStr());
+				TRIGRET_TYPE iRet = OnTriggerRun(s, TRIGRUN_SECTION_TRUE, pSrc, pArgs, pResult);
+				if ((iRet != TRIGRET_ENDIF) && (iRet != TRIGRET_CONTINUE))
+					return(iRet);
+				else
+					EndContext = s.GetContext();
+				s.SeekContext(StartContext);
+			}
+		}
+		else
+		{
+			for (int i = 0; i < iQty; i++)
+			{
+				const CVarDefCont * pVar = pVars->GetAt(i);
+				pArgs->m_VarsLocal.SetStr("_var_name", false, pVar->GetKey());
+				pArgs->m_VarsLocal.SetStr("_var_value", false, pVar->GetValStr());
+				TRIGRET_TYPE iRet = OnTriggerRun(s, TRIGRUN_SECTION_TRUE, pSrc, pArgs, pResult);
+				if ((iRet != TRIGRET_ENDIF) && (iRet != TRIGRET_CONTINUE))
+					return(iRet);
+				else
+					EndContext = s.GetContext();
+				s.SeekContext(StartContext);
+			}
+		}
+	}
+	if (EndContext.m_lOffset <= StartContext.m_lOffset)
+	{
+		// just skip to the end.
+		TRIGRET_TYPE iRet = OnTriggerRun(s, TRIGRUN_SECTION_FALSE, pSrc, pArgs, pResult);
+		if (iRet != TRIGRET_ENDIF)
+			return(iRet);
+	}
+	else
+	{
+		s.SeekContext(EndContext);
+	}
+	return(TRIGRET_ENDIF);
 }
 
 TRIGRET_TYPE CScriptObj::OnTriggerRunVal( CScript &s, TRIGRUN_TYPE trigrun, CTextConsole * pSrc, CScriptTriggerArgs * pArgs )

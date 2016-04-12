@@ -726,6 +726,24 @@ bool CVarDefMap::r_LoadVal( CScript & s )
 	bool fQuoted = false;
 	return( ( SetStr( s.GetKey(), fQuoted, s.GetArgStr( &fQuoted )) >= 0 ) ? true : false );
 }
+void CVarDefMap::r_WritePTag(CScript & s)
+{
+	LPCTSTR pszVal;
+	// Write with the TAG. prefix.
+	for (int i = GetCount(); --i >= 0; )
+	{
+		CVarDefCont * pVar = GetAt(i);
+		ASSERT(pVar);
+		CGString sKey;
+		sKey.Format("PTAG.%s", pVar->GetKey());
+		pszVal = pVar->GetValStr();
+		CVarDefContStr * pVarStr = dynamic_cast <CVarDefContStr *>(pVar);
+		if (pVarStr /*isspace(pszVal[0]) || isspace( pszVal[strlen(pszVal)-1] )*/)
+			s.WriteKeyFormat(sKey, "\"%s\"", pszVal);
+		else
+			s.WriteKey(sKey, pszVal);
+	}
+}
 
 void CVarDefMap::r_WritePrefix( CScript & s, LPCTSTR pszPrefix, LPCTSTR pszKeyExclude )
 {

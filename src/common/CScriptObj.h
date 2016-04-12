@@ -97,6 +97,7 @@
 
 	private:
 		TRIGRET_TYPE OnTriggerForLoop( CScript &s, int iType, CTextConsole * pSrc, CScriptTriggerArgs * pArgs, CGString * pResult );
+		TRIGRET_TYPE OnTriggerForVarsLoop(CScript &s, CTextConsole * pSrc, CScriptTriggerArgs * pArgs, CVarDefMap * pVars, LPCTSTR pszMask, CGString * pResult);
 	public:
 		static const char *m_sClassName;
 		TRIGRET_TYPE OnTriggerScript( CScript &s, LPCTSTR pszTrigName, CTextConsole * pSrc, CScriptTriggerArgs * pArgs = NULL );
@@ -160,6 +161,7 @@
 		CVarDefMap 					m_VarsLocal;// "LOCAL.x" = local variable x
 		CVarFloat					m_VarsFloat;// "FLOAT.x" = float local variable x
 		CLocalObjMap				m_VarObjs;	// "REFx" = local object x
+		CVarDefMap					m_PVarsLocal; // PLOCAL.x 
 
 	public:
 
