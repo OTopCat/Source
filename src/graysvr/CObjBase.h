@@ -63,6 +63,7 @@ public:
 	inline bool CallPersonalTrigger(TCHAR * pArgs, CTextConsole * pSrc, TRIGRET_TYPE & trResult, bool bFull);
 	static const char *m_sClassName;
 	CVarDefMap m_TagDefs;		// attach extra tags here.
+    CVarDefMap m_PTagDefs;		// pointer Tag.
 	CVarDefMap m_BaseDefs;		// New Variable storage system
 	DWORD	m_Can;
 	
@@ -414,6 +415,8 @@ enum ITRIG_TYPE
 	ITRIG_PICKUP_PACK,	// picked up from inside some container.
 	ITRIG_PICKUP_SELF,	// picked up from this container
 	ITRIG_PICKUP_STACK,	// picked up from a stack (ARGO)
+    ITRIG_SAVEEND,			// Item saved
+    ITRIG_SAVESTART,		// Item going to be saved
 	ITRIG_Sell,
 	ITRIG_Ship_Turn,
 	ITRIG_SPELLEFFECT,		// cast some spell on me.
@@ -2612,6 +2615,9 @@ enum CTRIG_TYPE
 	CTRIG_Rename,			// Changing my name or pets one
 
 	CTRIG_Resurrect,		// I'm going to resurrect via function or spell.
+    
+    CTRIG_SAVEEND,
+    CTRIG_SAVESTART,
 
 	CTRIG_SeeCrime,			// I am seeing a crime
 	CTRIG_SeeHidden,		// I'm about to see a hidden char
